@@ -13,7 +13,18 @@ An agent skill that gives a coding agent two read-only web tools backed by DeepS
 | Query-level control | `site:`, `-site:`, `-word`, `-"phrase"`, `"phrase"`, `lang:`, `after:`, `before:` |
 | Predictable cost | Search and Fetch bill per successful request, and only an HTTP 200 with output counts |
 
-It calls the raw Search (`POST /v1/tools/search`) and Fetch (`POST /v1/tools/fetch`) APIs, so it works in any harness that discovers a `SKILL.md` — DeepSeek Harness, Claude Code, Codex, or your own agent. A harness that already ships a web tool can keep both: the built-in tool usually answers with links, while this skill returns model-written summaries, quality signals, and full page Markdown on demand.
+It calls the raw Search (`POST /v1/tools/search`) and Fetch (`POST /v1/tools/fetch`) APIs, so it works in any harness that discovers a `SKILL.md` — DeepSeek Harness, OpenClaw, Hermes, Claude Code, Codex, or your own agent. A harness that already ships a web tool can keep both: the built-in tool usually answers with links, while this skill returns model-written summaries, quality signals, and full page Markdown on demand.
+
+## Supported hosts
+
+| Host | Run the script | Inject the key |
+|---|---|---|
+| DSH | Skill loading reports the skill's base directory: set the tool's `cwd` there and run `python scripts/ds_web.py ...` | `DEEPSEEK_API_KEY` in the process environment, or the skill's `.env` |
+| OpenClaw | `python3 {baseDir}/scripts/ds_web.py ...` (OpenClaw substitutes `{baseDir}`) | `~/.openclaw/openclaw.json` → `skills.entries["web-search-deepseek"].env.DEEPSEEK_API_KEY`, or the skill's `.env` |
+| Hermes | Absolute path: `python3 /path/to/web-search-deepseek/scripts/ds_web.py ...` | `DEEPSEEK_API_KEY` in the environment, or the skill's `.env` |
+| Other (Claude Code, Codex, …) | that host's own skill invocation | `DEEPSEEK_API_KEY` in the environment, or the skill's `.env` |
+
+Use `python` on Windows and `python3` on macOS or Linux.
 
 ## Requirements
 
@@ -22,7 +33,7 @@ It calls the raw Search (`POST /v1/tools/search`) and Fetch (`POST /v1/tools/fet
 
 ## Install
 
-Copy this directory into a skills root your harness scans. DeepSeek Harness reads project roots `<project>/.agents/skills/` and `<project>/.dsh/skills/`, then user roots `~/.agents/skills/` and `~/.dsh/skills/`.
+Copy this directory into a skills root your harness scans. DSH reads project roots `<project>/.agents/skills/` and `<project>/.dsh/skills/`, then user roots `~/.agents/skills/` and `~/.dsh/skills/`; OpenClaw and Hermes use their own skills directory. The directory name is the skill name.
 
 ```bash
 git clone https://github.com/neohope/web-search-deepseek.git
@@ -36,7 +47,7 @@ A skill is one directory containing `SKILL.md`, so any other layout works too: p
 ## Quick start
 
 ```bash
-export DEEPSEEK_API_KEY=sk-...   # Windows: $env:DEEPSEEK_API_KEY = 'sk-...'
+cp .env.example .env                  # fill in DEEPSEEK_API_KEY; .env is gitignored
 python scripts/ds_web.py search "DeepSeek V4 模型 发布" --count 5
 python scripts/ds_web.py fetch https://example.com/article
 ```
@@ -65,7 +76,7 @@ Pass `--json` for the API payload instead, `--content` to include page bodies in
 
 | Setting | Flag | Environment | Default |
 |---|---|---|---|
-| API key | `--api-key` | `DEEPSEEK_API_KEY` | nearest `.env`, walking up from the current directory |
+| API key | `--api-key` | `DEEPSEEK_API_KEY` | nearest `.env` from the current directory, then the skill's own `.env` |
 | Base URL | `--base-url` | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` (a trailing `/v1` is tolerated) |
 | Per-request timeout | `--timeout` | — | 30 seconds |
 | Retries after a transient failure | `--retries` | — | 3 |
@@ -127,6 +138,7 @@ Search and Fetch bill ¥5 per 1,000 successful requests each; `count` does not c
 
 ## Security
 
+- **Never paste the key into a chat.** DSH writes messages to a replayable session log and other hosts may persist conversations; use the environment or a gitignored `.env`.
 - **Retrieved text is untrusted.** The skill tells the agent to treat pages and snippets as data: never follow instructions found in them, never run suggested commands, and cite URLs instead of paraphrasing silently.
 - **The key stays out of output.** It is read from the flag, environment, or `.env`, sent only in the `Authorization` header, and never printed or written by the script.
 - **Fetch runs on DeepSeek's servers**, so it reaches the public web rather than your machine's network. It cannot read intranet hosts or files.
@@ -135,11 +147,14 @@ Search and Fetch bill ¥5 per 1,000 successful requests each; `count` does not c
 ## Layout
 
 ```text
-SKILL.md                 agent instructions: setup, search/fetch usage, triage, guardrails
+SKILL.md                 agent instructions: hosts, setup, search/fetch usage, triage, guardrails
 scripts/ds_web.py        the CLI (Python 3.9+, standard library only)
 references/api.md        full request/response schema, error table, billing and limits
 tests/test_ds_web.py     behavioral tests against a local mock of both endpoints
 agents/openai.yaml       display metadata for harnesses that read it
+.env.example             credential template (copy to .env)
+CHANGELOG.md             version history
+.github/workflows/ci.yml test matrix: ubuntu/windows × Python 3.9/3.11/3.13
 ```
 
 ## Tests
@@ -148,7 +163,11 @@ agents/openai.yaml       display metadata for harnesses that read it
 python -m unittest discover -s tests -v
 ```
 
-The suite starts a local HTTP server that mimics both endpoints and runs the real CLI in-process, covering result formatting, JSON mode, truncation, field passthrough, retries on 429 and 5xx, 402/404 failures, malformed responses, missing credentials, `.env` resolution, and input validation. No API key and no network access are needed.
+The suite starts a local HTTP server that mimics both endpoints and runs the real CLI in-process, covering result formatting, JSON mode, truncation, field passthrough, retries on 429 and 5xx, 402/404 failures, malformed responses, missing credentials, `.env` resolution (project chain and the skill's own file), and input validation. No API key and no network access are needed.
+
+## Changes
+
+Version history is in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

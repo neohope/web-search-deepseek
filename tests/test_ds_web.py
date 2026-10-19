@@ -298,5 +298,27 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(code, 2)
 
 
+class EnvCandidateTests(unittest.TestCase):
+    def test_skill_directory_env_is_a_candidate(self):
+        # The skill's own .env is the fallback for hosts that run the script from
+        # somewhere other than the project root.
+        candidates = ds_web.env_candidates()
+        skill_root = Path(ds_web.__file__).resolve().parents[1]
+        self.assertIn(skill_root / '.env', candidates)
+        self.assertTrue(all(candidate.name == '.env' for candidate in candidates))
+
+    def test_skill_env_is_appended_after_the_project_chain(self):
+        elsewhere = Path('/nonexistent/project')
+        with mock.patch.object(Path, 'cwd', return_value=elsewhere):
+            candidates = ds_web.env_candidates()
+        skill_root = Path(ds_web.__file__).resolve().parents[1]
+        self.assertEqual(candidates[0], elsewhere / '.env')
+        self.assertEqual(candidates[-1], skill_root / '.env')
+
+    def test_candidates_are_deduplicated(self):
+        candidates = ds_web.env_candidates()
+        self.assertEqual(len(candidates), len({str(candidate) for candidate in candidates}))
+
+
 if __name__ == '__main__':
     unittest.main()

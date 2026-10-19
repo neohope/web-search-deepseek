@@ -1,5 +1,6 @@
 ---
 name: web-search-deepseek
+version: 1.1.0
 description: Search the live web and read pages as Markdown through DeepSeek's Search and Fetch APIs with a bundled Python CLI (网页搜索, 网页抓取, 联网搜索, 查最新资料, 读取网页内容). Use when a task needs current facts beyond training data, source URLs to cite, site- or date-restricted research, or the readable text of a specific page. Not for local files or authenticated intranet pages.
 ---
 
@@ -7,7 +8,19 @@ description: Search the live web and read pages as Markdown through DeepSeek's S
 
 `scripts/ds_web.py` is a dependency-free Python 3.9+ CLI over two read-only DeepSeek endpoints: Search ranks web pages for a query, Fetch returns one page as Markdown. Both use the same Bearer key as the DeepSeek model APIs.
 
-Resolve `scripts/ds_web.py` against this skill's directory; installed as a DeepSeek Harness project skill it is `.agents/skills/web-search-deepseek/scripts/ds_web.py`. The full request and response schema, error table, billing, and limits live in [references/api.md](references/api.md).
+The full request and response schema, error table, billing, and limits live in [references/api.md](references/api.md).
+
+## Hosts
+
+The same `SKILL.md` and script run in any host that loads `SKILL.md` skills; only the way you locate the script and inject the key differs.
+
+| Host | Run the script | Inject the key |
+|---|---|---|
+| DSH | Skill loading reports the skill's base directory: set the tool's `cwd` there and run `python scripts/ds_web.py ...`, or use an absolute path | `DEEPSEEK_API_KEY` in the process environment, or the skill's `.env` |
+| OpenClaw | `python3 {baseDir}/scripts/ds_web.py ...` (OpenClaw substitutes `{baseDir}`) | `~/openclaw/openclaw.json` → `skills.entries["web-search-deepseek"].env.DEEPSEEK_API_KEY`, or the skill's `.env` |
+| Hermes / other | Absolute path of the installed skill: `python3 /path/to/web-search-deepseek/scripts/ds_web.py ...` | `DEEPSEEK_API_KEY` in the environment, or the skill's `.env` |
+
+Use `python` on Windows and `python3` on macOS or Linux. Do not combine `cd` with the script in one shell command when the execution tool has a `cwd` parameter.
 
 ## Reach for this instead of a harness web tool when
 
@@ -22,11 +35,12 @@ Resolve `scripts/ds_web.py` against this skill's directory; installed as a DeepS
 python scripts/ds_web.py --help
 ```
 
-- **Key**: `--api-key`, else `$DEEPSEEK_API_KEY`, else `DEEPSEEK_API_KEY` in the nearest `.env` walking up from the current directory. A missing key exits 2 before any request, with the platform key URL. Never print the key, copy it into a file, or put it in a URL.
+- **Key**: `--api-key`, else `$DEEPSEEK_API_KEY`, else `DEEPSEEK_API_KEY` in a `.env` file — the nearest one walking up from the current directory, then this skill's own `.env`. A missing key exits 2 before any request, with the platform key URL.
 - **Base URL**: `--base-url`, else `$DEEPSEEK_BASE_URL`, else `https://api.deepseek.com`; a trailing `/v1` is tolerated.
 - **Output**: text by default, written for you to read. `--json` prints the API payload for scripting; it applies no length caps.
 - **Transport**: `--timeout` bounds each request (default 30 seconds) and `--retries` sets retries after a transient failure (default 3).
 - **Exit codes**: 0 success including zero results, 1 API or network failure, 2 usage or configuration error.
+- **Key handling**: never print the key, put it in a URL, or paste it into a chat message — DSH writes messages to a replayable session log and other hosts may persist conversations. Use the environment or a gitignored `.env`; `.env.example` is the template.
 
 ## Search
 

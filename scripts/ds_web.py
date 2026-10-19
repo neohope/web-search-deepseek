@@ -13,9 +13,10 @@ Usage:
     python ds_web.py fetch https://example.com/article
     python ds_web.py fetch https://a.example https://b.example --max-chars 4000
 
-The API key is read from --api-key, then $DEEPSEEK_API_KEY, then the nearest `.env`
-walking up from the current directory. The base URL is read from --base-url, then
-$DEEPSEEK_BASE_URL, and otherwise defaults to https://api.deepseek.com.
+The API key is read from --api-key, then $DEEPSEEK_API_KEY, then a `.env` file: the
+nearest one walking up from the current directory, falling back to this skill's own
+`.env`. The base URL is read from --base-url, then $DEEPSEEK_BASE_URL, and otherwise
+defaults to https://api.deepseek.com.
 
 Exit codes: 0 success (including a search with zero results), 1 API or network
 failure, 2 usage or configuration error. Retries after a timeout, a network error,
@@ -84,16 +85,35 @@ def parse_env_file(path: Path) -> dict[str, str]:
     return values
 
 
+def env_candidates() -> list[Path]:
+    """Dotenv files in priority order: the cwd project chain, then the skill directory.
+
+    A host may run this script with the skill directory as cwd or from a project
+    root with the skill installed elsewhere, so the skill's own `.env` is the
+    fallback that works in both cases.
+    """
+    start = Path.cwd()
+    candidates = [directory / ".env" for directory in (start, *start.parents)]
+    candidates.append(Path(__file__).resolve().parents[1] / ".env")
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(candidate)
+    return unique
+
+
 def resolve_setting(name: str, explicit: str) -> str:
-    """Resolve an explicit flag, then the environment, then the nearest `.env`."""
+    """Resolve an explicit flag, then the environment, then the first `.env` with the value."""
     if explicit:
         return explicit
     from_environment = os.environ.get(name)
     if from_environment:
         return from_environment
-    start = Path.cwd()
-    for directory in (start, *start.parents):
-        candidate = directory / ".env"
+    for candidate in env_candidates():
         if candidate.is_file():
             value = parse_env_file(candidate).get(name)
             if value:
@@ -162,7 +182,7 @@ def post(path: str, payload: dict[str, object], settings: Settings) -> dict[str,
         "Authorization": f"Bearer {settings.api_key}",
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "User-Agent": "deepseek-web-search/1.0",
+        "User-Agent": "web-search-deepseek/1.1",
     }
     attempt = 0
     while True:
@@ -399,10 +419,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             run_fetch(args, settings)
     except UsageError as error:
-        print(f"deepseek-web-search: {error}", file=sys.stderr)
+        print(f"web-search-deepseek: {error}", file=sys.stderr)
         return 2
     except ApiError as error:
-        print(f"deepseek-web-search: {error}", file=sys.stderr)
+        print(f"web-search-deepseek: {error}", file=sys.stderr)
         return 1
     return 0
 

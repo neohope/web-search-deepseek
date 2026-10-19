@@ -1,0 +1,4 @@
+interface:
+  display_name: "Web Search and Fetch (DeepSeek)"
+  short_description: "Search the web and read pages as Markdown via DeepSeek"
+  default_prompt: "Use $web-search-deepseek to search the web for current information and fetch the pages you need."
